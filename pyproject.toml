@@ -10,7 +10,8 @@ authors = [{name = "", email = ""}]
 readme = "README.md"
 license = {text = "MIT"}
 dependencies = [
-    "pymodbus"
+    "pymodbus",
+    "fastapi",
 ]
 
 [tool.pytest.ini_options]
