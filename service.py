@@ -116,7 +116,7 @@ class VSensorService:
     # ------------------------------------------------------------------
     def start(self) -> None:
         """Start the polling thread if not already running."""
-        if self._running:
+        if self._thread is not None and self._thread.is_alive():
             return
         try:
             self._client.connect()
@@ -128,12 +128,12 @@ class VSensorService:
 
     def stop(self) -> None:
         """Stop the background thread and close the client."""
-        if not self._running:
+        if self._thread is None:
             return
         self._running = False
-        if self._thread is not None:
+        if self._thread.is_alive():
             self._thread.join()
-            self._thread = None
+        self._thread = None
         try:
             self._client.close()
         except Exception:  # pragma: no cover - defensive
@@ -190,6 +190,20 @@ class VSensorService:
             entry = self._apply_stale(entry)
             result[name] = None if entry["quality"] is Quality.ERROR else entry["value"]
         return result
+
+    def get_entry(self, name: str) -> Optional[Dict[str, Any]]:
+        """Return full cache entry for ``name`` including stale evaluation."""
+        with self._lock:
+            entry = self._cache.get(name)
+        if entry is None:
+            return None
+        return self._apply_stale(dict(entry))
+
+    def get_all_entries(self) -> Dict[str, Dict[str, Any]]:
+        """Return full cache for all registers including stale evaluation."""
+        with self._lock:
+            items = {k: dict(v) for k, v in self._cache.items()}
+        return {name: self._apply_stale(entry) for name, entry in items.items()}
 
     def write_register(self, name: str, value: int | float) -> bool:
         """Write a register and update the cache on success."""

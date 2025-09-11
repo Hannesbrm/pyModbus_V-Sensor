@@ -109,6 +109,8 @@ REGISTERS = {
         "length": 2,
         "rw": "R",
         "description": "Display Value (as shown on display)",
+        "format": "{:.2f}",
+        "unit": "",
     },
     151: {
         "address": 151,
@@ -117,6 +119,8 @@ REGISTERS = {
         "length": 2,
         "rw": "R",
         "description": "Pascals (measured pressure)",
+        "format": "{:.1f}",
+        "unit": "Pa",
     },
     153: {
         "address": 153,
@@ -125,6 +129,8 @@ REGISTERS = {
         "length": 2,
         "rw": "RW",
         "description": "Control/PID Setpoint",
+        "format": "{:.1f}",
+        "unit": "Pa",
     },
     155: {
         "address": 155,
@@ -132,6 +138,8 @@ REGISTERS = {
         "type": "s16",
         "rw": "R",
         "description": "PID Output (–4095…+4095)",
+        "format": "{:.0f}",
+        "unit": "",
     },
     156: {
         "address": 156,
@@ -146,6 +154,8 @@ REGISTERS = {
         "type": "s16",
         "rw": "R",
         "description": "Pressure (int, 0.1 Pa <2500Pa, else 1 Pa)",
+        "format": "{:.1f}",
+        "unit": "Pa",
     },
     164: {
         "address": 164,
@@ -161,6 +171,8 @@ REGISTERS = {
         "length": 2,
         "rw": "RW",
         "description": "Hand Setpoint (%)",
+        "format": "{:.1f}",
+        "unit": "%",
     },
     167: {
         "address": 167,
@@ -169,6 +181,8 @@ REGISTERS = {
         "length": 2,
         "rw": "R",
         "description": "Control Output (%)",
+        "format": "{:.1f}",
+        "unit": "%",
     },
     216: {
         "address": 216,
@@ -177,6 +191,8 @@ REGISTERS = {
         "length": 2,
         "rw": "RW",
         "description": "Low Alarm Threshold (Display Units)",
+        "format": "{:.1f}",
+        "unit": "",
     },
     218: {
         "address": 218,
@@ -185,6 +201,8 @@ REGISTERS = {
         "length": 2,
         "rw": "RW",
         "description": "High Alarm Threshold (Display Units)",
+        "format": "{:.1f}",
+        "unit": "",
     },
 }
 

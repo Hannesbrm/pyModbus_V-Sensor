@@ -94,3 +94,22 @@ def test_read_all() -> None:
     assert data["heartbeat"] == 5
     assert service.status("heartbeat") is Quality.OK
     service.stop()
+
+
+def test_get_entry_api() -> None:
+    client = FakeClient({"heartbeat": 5})
+    service = VSensorService(
+        client=client, registers=["heartbeat"], interval=0.05, stale_after=0.1
+    )
+    time.sleep(0.1)
+    entry = service.get_entry("heartbeat")
+    assert entry is not None
+    assert entry["value"] == 5
+    all_entries = service.get_all_entries()
+    assert "heartbeat" in all_entries
+    assert all_entries["heartbeat"]["quality"] is Quality.OK
+    service.stop()
+    time.sleep(0.15)
+    entry = service.get_entry("heartbeat")
+    assert entry is not None
+    assert entry["quality"] is Quality.STALE
