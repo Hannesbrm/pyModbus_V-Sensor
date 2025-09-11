@@ -1,12 +1,12 @@
 [Unit]
-Description=V-Sensor Modbus Service
+Description=V-Sensor MQTT Service
 After=network.target
 
 [Service]
 Type=simple
 ExecStart=/usr/bin/python3 -m app_pi.service
-WorkingDirectory=/opt/pymodbus-vsensor
-Environment=VSENSOR_CONFIG_FILE=/opt/pymodbus-vsensor/config.yaml
+WorkingDirectory=/opt/vsensor
+Environment=VSENSOR_CONFIG_FILE=/opt/vsensor/config.yaml
 Restart=always
 
 [Install]
