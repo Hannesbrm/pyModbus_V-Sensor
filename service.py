@@ -100,13 +100,13 @@ class VSensorService:
                         "quality": quality,
                     }
             with self._lock:
-                self._last_poll_ok = any_ok
+                self._last_poll_ok = any_ok or not self._registers
             time.sleep(self._interval)
 
     # ------------------------------------------------------------------
     def start(self) -> None:
         """Start the polling thread if not already running."""
-        if self._running:
+        if self._thread and self._thread.is_alive():
             return
         try:
             self._client.connect()
@@ -118,11 +118,10 @@ class VSensorService:
 
     def stop(self) -> None:
         """Stop the background thread and close the client."""
-        if not self._running:
-            return
         self._running = False
-        if self._thread is not None:
-            self._thread.join()
+        thread = self._thread
+        if thread is not None:
+            thread.join()
             self._thread = None
         try:
             self._client.close()
@@ -160,26 +159,35 @@ class VSensorService:
             entry["quality"] = Quality.STALE
         return entry
 
-    def read_register(self, name: str) -> Optional[int | float]:
-        """Return the cached value for ``name``."""
+    # Public API --------------------------------------------------------
+    def get_entry(self, name: str) -> Optional[Dict[str, Any]]:
+        """Return the cached entry for ``name`` including stale evaluation."""
         with self._lock:
             entry = self._cache.get(name)
         if entry is None:
             return None
-        entry = self._apply_stale(entry)
-        if entry["quality"] is Quality.ERROR:
+        return self._apply_stale(dict(entry))
+
+    def get_all_entries(self) -> Dict[str, Dict[str, Any]]:
+        """Return cached entries for all registers including stale evaluation."""
+        with self._lock:
+            items = {k: dict(v) for k, v in self._cache.items()}
+        return {k: self._apply_stale(v) for k, v in items.items()}
+
+    def read_register(self, name: str) -> Optional[int | float]:
+        """Return the cached value for ``name``."""
+        entry = self.get_entry(name)
+        if entry is None or entry["quality"] is Quality.ERROR:
             return None
         return entry["value"]
 
     def read_all(self) -> Dict[str, Optional[int | float]]:
         """Return cached values for all registers."""
-        with self._lock:
-            items = {k: dict(v) for k, v in self._cache.items()}
-        result: Dict[str, Optional[int | float]] = {}
-        for name, entry in items.items():
-            entry = self._apply_stale(entry)
-            result[name] = None if entry["quality"] is Quality.ERROR else entry["value"]
-        return result
+        entries = self.get_all_entries()
+        return {
+            name: None if e["quality"] is Quality.ERROR else e["value"]
+            for name, e in entries.items()
+        }
 
     def write_register(self, name: str, value: int | float) -> bool:
         """Write a register and update the cache on success."""
@@ -200,9 +208,7 @@ class VSensorService:
     # ------------------------------------------------------------------
     def status(self, name: str) -> Optional[Quality]:
         """Return the :class:`Quality` for ``name``."""
-        with self._lock:
-            entry = self._cache.get(name)
+        entry = self.get_entry(name)
         if entry is None:
             return None
-        entry = self._apply_stale(entry)
         return entry["quality"]

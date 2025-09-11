@@ -12,6 +12,7 @@ license = {text = "MIT"}
 dependencies = [
     "pymodbus",
     "fastapi",
+    "platformdirs",
 ]
 
 [tool.pytest.ini_options]

@@ -1,16 +1,20 @@
 import json
 import math
-import os
 import time
+from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, simpledialog
+
+from platformdirs import user_config_path
 
 from registers import BY_NAME
 from service import VSensorService, Quality
 
 
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), "gui_app_config.json")
-DEFAULT_REGISTERS = list(BY_NAME)[:4]
+CONFIG_DIR = user_config_path("vsensor", ensure_exists=True)
+CONFIG_FILE = Path(CONFIG_DIR) / "gui.json"
+OLD_CONFIG_FILE = Path(__file__).with_name("gui_app_config.json")
+START_REGISTERS: list[str] = []
 DEFAULT_INTERVAL = 0.5
 
 
@@ -23,7 +27,9 @@ class DashboardApp:
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.config = self.load_config()
-        self.selected = self.config.get("registers", DEFAULT_REGISTERS)
+        self.selected = self.config.get("registers")
+        if self.selected is None:
+            self.selected = START_REGISTERS.copy()
         self.poll_interval = self.config.get("poll_interval", DEFAULT_INTERVAL)
         self.update_interval = int(self.poll_interval * 1000)
 
@@ -53,10 +59,20 @@ class DashboardApp:
 
     # ------------------------------------------------------------------
     def load_config(self) -> dict:
-        if os.path.exists(CONFIG_FILE):
+        if CONFIG_FILE.exists():
             try:
-                with open(CONFIG_FILE, "r", encoding="utf-8") as fh:
+                with CONFIG_FILE.open("r", encoding="utf-8") as fh:
                     return json.load(fh)
+            except Exception:
+                return {}
+        if OLD_CONFIG_FILE.exists():
+            try:
+                with OLD_CONFIG_FILE.open("r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                with CONFIG_FILE.open("w", encoding="utf-8") as fh:
+                    json.dump(data, fh, indent=2)
+                OLD_CONFIG_FILE.unlink()
+                return data
             except Exception:
                 return {}
         return {}
@@ -64,7 +80,7 @@ class DashboardApp:
     def save_config(self) -> None:
         data = {"registers": self.selected, "poll_interval": self.poll_interval}
         try:
-            with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
+            with CONFIG_FILE.open("w", encoding="utf-8") as fh:
                 json.dump(data, fh, indent=2)
         except Exception:
             pass
@@ -108,6 +124,7 @@ class DashboardApp:
                 "timestamp": ts_var,
                 "status": status_var,
                 "status_label": status_lbl,
+                "format": spec.get("format"),
             }
 
     # ------------------------------------------------------------------
@@ -124,12 +141,25 @@ class DashboardApp:
         elif self.banner.winfo_ismapped():
             self.banner.pack_forget()
         for name, widgets in self.cards.items():
-            value = self.service.read_register(name)
-            quality = self.service.status(name) or Quality.ERROR
-            with self.service._lock:  # type: ignore[attr-defined]
-                entry = self.service._cache.get(name)
-            ts = entry["timestamp"] if entry else None
-            widgets["value"].set("--" if value is None else str(value))
+            entry = self.service.get_entry(name)
+            if entry is None:
+                value = None
+                ts = None
+                quality = Quality.ERROR
+            else:
+                value = entry["value"]
+                ts = entry["timestamp"]
+                quality = entry["quality"]
+            fmt = widgets.get("format")
+            if value is None:
+                widgets["value"].set("--")
+            elif fmt:
+                try:
+                    widgets["value"].set(fmt.format(value))
+                except Exception:
+                    widgets["value"].set(str(value))
+            else:
+                widgets["value"].set(str(value))
             if ts is not None:
                 widgets["timestamp"].set(time.strftime("%H:%M:%S", time.localtime(ts)))
             else:
@@ -153,9 +183,6 @@ class DashboardApp:
 
         def apply() -> None:
             sel = [names[i] for i in lb.curselection()]
-            if not sel:
-                messagebox.showwarning("No Selection", "Select at least one register")
-                return
             self.selected = sel
             self.service.stop()
             self.service.configure(registers=self.selected)
