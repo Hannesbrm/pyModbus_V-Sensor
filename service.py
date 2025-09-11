@@ -75,13 +75,15 @@ class VSensorService:
 
         self._cache: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.Lock()
-        self._running = True
-        self._thread = threading.Thread(target=self._poll_loop, daemon=True)
-        self._thread.start()
+        self._running = False
+        self._thread: threading.Thread | None = None
+        self._last_poll_ok = True
+        self.start()
 
     # ------------------------------------------------------------------
     def _poll_loop(self) -> None:
         while self._running:
+            any_ok = False
             for name in self._registers:
                 try:
                     value = self._client.read_register(name)
@@ -89,25 +91,67 @@ class VSensorService:
                     LOGGER.error("Polling %s failed: %s", name, exc)
                     value = None
                 quality = Quality.OK if value is not None else Quality.ERROR
+                if value is not None:
+                    any_ok = True
                 with self._lock:
                     self._cache[name] = {
                         "value": value,
                         "timestamp": time.time(),
                         "quality": quality,
                     }
+            with self._lock:
+                self._last_poll_ok = any_ok
             time.sleep(self._interval)
 
     # ------------------------------------------------------------------
+    def start(self) -> None:
+        """Start the polling thread if not already running."""
+        if self._running:
+            return
+        try:
+            self._client.connect()
+        except Exception as exc:  # pragma: no cover - defensive
+            LOGGER.error("Failed to connect: %s", exc)
+        self._running = True
+        self._thread = threading.Thread(target=self._poll_loop, daemon=True)
+        self._thread.start()
+
     def stop(self) -> None:
         """Stop the background thread and close the client."""
+        if not self._running:
+            return
         self._running = False
-        self._thread.join(timeout=self._interval)
+        if self._thread is not None:
+            self._thread.join()
+            self._thread = None
         try:
             self._client.close()
         except Exception:  # pragma: no cover - defensive
             pass
 
     close = stop  # alias
+
+    # ------------------------------------------------------------------
+    def configure(
+        self, *, registers: Optional[Iterable[str]] = None, interval: float | None = None
+    ) -> None:
+        """Update registers and/or interval for subsequent polling."""
+        if registers is not None:
+            for name in registers:
+                if name not in BY_NAME:
+                    raise KeyError(f"Unknown register: {name}")
+            self._registers = list(registers)
+            with self._lock:
+                self._cache = {k: v for k, v in self._cache.items() if k in self._registers}
+        if interval is not None:
+            self._interval = interval
+            self._stale_after = interval * 2
+
+    # ------------------------------------------------------------------
+    def last_poll_ok(self) -> bool:
+        """Return ``True`` if the last polling cycle had no errors."""
+        with self._lock:
+            return self._last_poll_ok
 
     # ------------------------------------------------------------------
     def _apply_stale(self, entry: Dict[str, Any]) -> Dict[str, Any]:
