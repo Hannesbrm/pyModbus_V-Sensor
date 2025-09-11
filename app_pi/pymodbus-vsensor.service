@@ -1,0 +1,13 @@
+[Unit]
+Description=V-Sensor Modbus Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -m app_pi.service
+WorkingDirectory=/opt/pymodbus-vsensor
+Environment=VSENSOR_CONFIG_FILE=/opt/pymodbus-vsensor/config.yaml
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
