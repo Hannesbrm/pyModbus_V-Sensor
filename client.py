@@ -24,7 +24,7 @@ from pymodbus.client import ModbusSerialClient, ModbusTcpClient
 from pymodbus.exceptions import ModbusException
 
 from codec import decode_float32, encode_float32
-from registers import REGISTERS, zero_based
+from registers import BY_ADDR, BY_NAME, zero_based
 
 LOGGER = logging.getLogger(__name__)
 
@@ -136,15 +136,12 @@ class VSensorClient:
 
         if isinstance(register, str):
             # allow lookup by symbolic name if desired
-            reg_spec = next(
-                (spec for spec in REGISTERS.values() if spec.get("name") == register),
-                None,
-            )
+            reg_spec = BY_NAME.get(register)
             if not reg_spec:
                 raise KeyError(f"Unknown register name: {register}")
             return zero_based(reg_spec["address"]), reg_spec
 
-        reg_spec = REGISTERS.get(register)
+        reg_spec = BY_ADDR.get(register)
         if reg_spec:
             return zero_based(reg_spec["address"]), reg_spec
         # Not part of REGISTERS -> assume caller already used 0-based address
