@@ -13,8 +13,7 @@ sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))
 from pymodbus.datastore import ModbusSequentialDataBlock, ModbusDeviceContext, ModbusServerContext
 from pymodbus.server import StartTcpServer
 
-from v_sensor_core.client import VSensorClient
-from v_sensor_core.registers import VSensorRegister
+from client import VSensorClient
 
 
 def _run_server() -> None:
@@ -31,6 +30,6 @@ def test_read_registers() -> None:
 
     client = VSensorClient(method="tcp", host="127.0.0.1", tcp_port=5020)
     assert client.connect()
-    assert client.read_register(VSensorRegister.TEMPERATURE) == 25
-    assert client.read_register(VSensorRegister.HUMIDITY) == 50
+    assert client.read_register(0) == 25
+    assert client.read_register(1) == 50
     client.close()

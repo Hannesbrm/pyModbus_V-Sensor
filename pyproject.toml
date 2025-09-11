@@ -10,11 +10,7 @@ authors = [{name = "", email = ""}]
 readme = "README.md"
 license = {text = "MIT"}
 dependencies = [
-    "pymodbus",
-    "PyYAML",
-    "streamlit",
-    "paho-mqtt",
-    "click"
+    "pymodbus"
 ]
 
 [tool.pytest.ini_options]
