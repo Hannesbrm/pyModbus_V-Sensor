@@ -187,6 +187,19 @@ class VSensorClient:
             return _to_signed(regs[0])
         return regs[0]
 
+    def read_all(self, registers: Optional[Iterable[str]] = None) -> dict[str, Optional[int | float]]:
+        """Read multiple registers at once.
+
+        Parameters
+        ----------
+        registers:
+            Optional iterable of register names. When omitted all registers in
+            :data:`registers.BY_NAME` are used.
+        """
+
+        names = list(registers) if registers is not None else list(BY_NAME.keys())
+        return {name: self.read_register(name) for name in names}
+
     def write_register(self, register: int | str, value: int | float) -> bool:
         """Write a register on the sensor.
 
