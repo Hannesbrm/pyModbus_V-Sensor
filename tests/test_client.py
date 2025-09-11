@@ -53,3 +53,13 @@ def test_write_registers() -> None:
     assert client.write_register(0, 123)
     assert client.read_register(0) == 123
     client.close()
+
+
+def test_lookup_by_name() -> None:
+    _start_server(5022, [0] * 300)
+
+    client = VSensorClient(method="tcp", host="127.0.0.1", tcp_port=5022)
+    assert client.connect()
+    assert client.write_register("buzzer_status", 1)
+    assert client.read_register("buzzer_status") == 1
+    client.close()
