@@ -78,6 +78,10 @@ class VSensorService:
         self._running = False
         self._thread: threading.Thread | None = None
         self._last_poll_ok = True
+        self._polls_total = 0
+        self._errors_total = 0
+        self._last_success_ts: float | None = None
+        self._start_ts = time.time()
         self.start()
 
     # ------------------------------------------------------------------
@@ -99,8 +103,14 @@ class VSensorService:
                         "timestamp": time.time(),
                         "quality": quality,
                     }
+            now = time.time()
             with self._lock:
                 self._last_poll_ok = any_ok
+                self._polls_total += 1
+                if any_ok:
+                    self._last_success_ts = now
+                else:
+                    self._errors_total += 1
             time.sleep(self._interval)
 
     # ------------------------------------------------------------------
@@ -206,3 +216,31 @@ class VSensorService:
             return None
         entry = self._apply_stale(entry)
         return entry["quality"]
+
+    # ------------------------------------------------------------------
+    @property
+    def poll_interval(self) -> float:
+        return self._interval
+
+    @property
+    def stale_after(self) -> float:
+        return self._stale_after
+
+    @property
+    def polls_total(self) -> int:
+        with self._lock:
+            return self._polls_total
+
+    @property
+    def errors_total(self) -> int:
+        with self._lock:
+            return self._errors_total
+
+    @property
+    def last_success_ts(self) -> float | None:
+        with self._lock:
+            return self._last_success_ts
+
+    @property
+    def uptime(self) -> float:
+        return time.time() - self._start_ts
