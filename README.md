@@ -1,13 +1,23 @@
-# pymodbus-vsensor
 
-Skeleton project for communicating with a CMR Controls V-Sensor over RS-485 Modbus RTU using `pymodbus`.
+# pyModbus_V-Sensor
 
-## Structure
+Helper utilities for communicating with the V-Sensor using Modbus.
 
-- `v_sensor_core` – reusable package with Modbus client and helpers.
-- `app_desktop` – Streamlit dashboard application.
-- `app_pi` – headless service for Raspberry Pi including systemd unit.
-- `tools` – CLI utilities for reading and writing registers.
-- `tests` – pytest based tests using the `pymodbus` simulator.
+## Float codec
 
-Configuration is loaded from `config.yaml` and environment variables prefixed with `VSENSOR_`.
+The module `codec.py` contains functions to decode and encode 32‑bit
+floating point values from Modbus register pairs. Four different byte and
+word orders are supported to match the formats offered by the V-Sensor.
+Format 1 (*little endian with bytes swapped*) is used by default.
+
+The float format can be configured via the `V_SENSOR_FLOAT_FORMAT`
+environment variable or programmatically using
+`set_default_float_format()`.
+
+```python
+from codec import encode_float32, decode_float32, set_default_float_format, FloatFormat
+
+set_default_float_format(FloatFormat.FORMAT_1)
+registers = encode_float32(1.23)
+value = decode_float32(registers)
+```
