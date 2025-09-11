@@ -73,9 +73,14 @@ class VSensorClient:
         """
 
         if method == "rtu":
-            self._client = ModbusSerialClient(
-                method="rtu", port=port, baudrate=baudrate, timeout=timeout
-            )
+            try:
+                self._client = ModbusSerialClient(
+                    method="rtu", port=port, baudrate=baudrate, timeout=timeout
+                )
+            except TypeError:  # pragma: no cover - compatibility
+                self._client = ModbusSerialClient(
+                    port=port, baudrate=baudrate, timeout=timeout
+                )
         elif method == "tcp":
             self._client = ModbusTcpClient(host=host, port=tcp_port, timeout=timeout)
         else:  # pragma: no cover - defensive programming

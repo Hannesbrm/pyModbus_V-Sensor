@@ -6,13 +6,17 @@ build-backend = "setuptools.build_meta"
 name = "pymodbus-vsensor"
 version = "0.1.0"
 description = "Communication with CMR Controls V-Sensor over Modbus"
-authors = [{name = "", email = ""}]
+authors = [{name = "", email = "dev@example.com"}]
 readme = "README.md"
 license = {text = "MIT"}
 dependencies = [
     "pymodbus",
     "fastapi",
+    "uvicorn[standard]",
 ]
+
+[project.scripts]
+vsensor-api = "apps.headless_service:main"
 
 [tool.pytest.ini_options]
 addopts = "-q"
