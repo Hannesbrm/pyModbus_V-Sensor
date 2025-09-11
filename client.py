@@ -18,6 +18,7 @@ Signed registers are automatically converted to Python ``int`` values.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Iterable, Optional
 
 from pymodbus.client import ModbusSerialClient, ModbusTcpClient
@@ -163,32 +164,37 @@ class VSensorClient:
         address, spec = self._spec_for(register)
         count = spec.get("length", 1) if spec else 1
 
-        try:
-            kwargs = {self._unit_kw: self._device_id}
-            response = self._client.read_holding_registers(
-                address, count=count, **kwargs
-            )
-        except ModbusException as exc:
-            LOGGER.error("Modbus error while reading %s: %s", register, exc)
-            return None
-        except Exception as exc:  # pragma: no cover - defensive
-            LOGGER.error("Error while reading %s: %s", register, exc)
-            return None
+        error_msg: Optional[str] = None
+        for attempt in range(3):
+            try:
+                kwargs = {self._unit_kw: self._device_id}
+                response = self._client.read_holding_registers(
+                    address, count=count, **kwargs
+                )
+                if response.isError():  # type: ignore[attr-defined]
+                    error_msg = f"Error response while reading {register}: {response}"
+                else:
+                    regs = response.registers
+                    if spec is None:
+                        return regs[0]
 
-        if response.isError():  # type: ignore[attr-defined]
-            LOGGER.error("Error response while reading %s: %s", register, response)
-            return None
+                    rtype = spec.get("type", "u16")
+                    if rtype == "float32":
+                        return decode_float32(regs)
+                    if rtype == "s16":
+                        return _to_signed(regs[0])
+                    return regs[0]
+            except ModbusException as exc:
+                error_msg = f"Modbus error while reading {register}: {exc}"
+            except Exception as exc:  # pragma: no cover - defensive
+                error_msg = f"Error while reading {register}: {exc}"
 
-        regs = response.registers
-        if spec is None:
-            return regs[0]
+            if attempt < 2:
+                time.sleep(0.2)
 
-        rtype = spec.get("type", "u16")
-        if rtype == "float32":
-            return decode_float32(regs)
-        if rtype == "s16":
-            return _to_signed(regs[0])
-        return regs[0]
+        if error_msg:
+            LOGGER.error(error_msg)
+        return None
 
     def write_register(self, register: int | str, value: int | float) -> bool:
         """Write a register on the sensor.
@@ -211,28 +217,34 @@ class VSensorClient:
             else:
                 registers = [intval & 0xFFFF]
 
-        try:
-            if len(registers) == 1:
-                kwargs = {self._unit_kw: self._device_id}
-                response = self._client.write_register(
-                    address, registers[0], **kwargs
-                )
-            else:
-                kwargs = {self._unit_kw: self._device_id}
-                response = self._client.write_registers(
-                    address, registers, **kwargs
-                )
-        except ModbusException as exc:
-            LOGGER.error("Modbus error while writing %s: %s", register, exc)
-            return False
-        except Exception as exc:  # pragma: no cover - defensive
-            LOGGER.error("Error while writing %s: %s", register, exc)
-            return False
+        error_msg: Optional[str] = None
+        for attempt in range(3):
+            try:
+                if len(registers) == 1:
+                    kwargs = {self._unit_kw: self._device_id}
+                    response = self._client.write_register(
+                        address, registers[0], **kwargs
+                    )
+                else:
+                    kwargs = {self._unit_kw: self._device_id}
+                    response = self._client.write_registers(
+                        address, registers, **kwargs
+                    )
+                if response.isError():  # type: ignore[attr-defined]
+                    error_msg = f"Error response while writing {register}: {response}"
+                else:
+                    return True
+            except ModbusException as exc:
+                error_msg = f"Modbus error while writing {register}: {exc}"
+            except Exception as exc:  # pragma: no cover - defensive
+                error_msg = f"Error while writing {register}: {exc}"
 
-        if response.isError():  # type: ignore[attr-defined]
-            LOGGER.error("Error response while writing %s: %s", register, response)
-            return False
-        return True
+            if attempt < 2:
+                time.sleep(0.2)
+
+        if error_msg:
+            LOGGER.error(error_msg)
+        return False
 
     # Convenience aliases ---------------------------------------------
     def __call__(self, register: int | str) -> Optional[int | float]:
