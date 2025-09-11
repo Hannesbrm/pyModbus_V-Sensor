@@ -23,17 +23,28 @@ def main() -> None:
         baudrate=config["modbus"]["baudrate"],
         device_id=config["modbus"]["unit"],
     )
-    client.connect()
+    if not client.connect():
+        logger.error("Unable to connect to V-Sensor")
+        return
+
     try:
+        interval = max(config.get("interval", 5), 1)
         while True:
-            temperature = client.read_temperature()
-            humidity = client.read_humidity()
-            payload = json.dumps({"temperature": temperature, "humidity": humidity})
+            display = client.read_register(149)
+            pressure = client.read_register(151)
+            control = client.read_register(167)
+            payload = json.dumps(
+                {
+                    "display": display,
+                    "pressure": pressure,
+                    "control_output": control,
+                }
+            )
             publish.single(
                 config["mqtt"]["topic"], payload, hostname=config["mqtt"]["host"]
             )
             logger.info("Published %s", payload)
-            time.sleep(config.get("interval", 5))
+            time.sleep(interval)
     finally:
         client.close()
 
