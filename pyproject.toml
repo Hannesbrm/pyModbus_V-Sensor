@@ -13,6 +13,7 @@ dependencies = [
     "pymodbus",
     "fastapi",
     "uvicorn[standard]",
+    "platformdirs",
 ]
 
 [project.scripts]

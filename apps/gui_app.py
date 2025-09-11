@@ -1,16 +1,19 @@
 import json
 import math
-import os
 import time
 import tkinter as tk
+from pathlib import Path
 from tkinter import messagebox, simpledialog
+
+from platformdirs import user_config_path
 
 from registers import BY_NAME
 from service import VSensorService, Quality
 
 
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), "gui_app_config.json")
-DEFAULT_REGISTERS = list(BY_NAME)[:4]
+CONFIG_FILE_OLD = Path(__file__).with_name("gui_app_config.json")
+CONFIG_FILE = user_config_path("vsensor") / "gui.json"
+DEFAULT_REGISTERS: list[str] = []  # explicit start list
 DEFAULT_INTERVAL = 0.5
 
 
@@ -53,10 +56,21 @@ class DashboardApp:
 
     # ------------------------------------------------------------------
     def load_config(self) -> dict:
-        if os.path.exists(CONFIG_FILE):
+        if CONFIG_FILE.exists():
             try:
                 with open(CONFIG_FILE, "r", encoding="utf-8") as fh:
                     return json.load(fh)
+            except Exception:
+                return {}
+        if CONFIG_FILE_OLD.exists():
+            try:
+                with open(CONFIG_FILE_OLD, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+                with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
+                    json.dump(data, fh, indent=2)
+                CONFIG_FILE_OLD.unlink()
+                return data
             except Exception:
                 return {}
         return {}
@@ -64,6 +78,7 @@ class DashboardApp:
     def save_config(self) -> None:
         data = {"registers": self.selected, "poll_interval": self.poll_interval}
         try:
+            CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
             with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
                 json.dump(data, fh, indent=2)
         except Exception:
@@ -123,13 +138,29 @@ class DashboardApp:
                 self.banner.pack(fill="x")
         elif self.banner.winfo_ismapped():
             self.banner.pack_forget()
+        entries = self.service.get_all_entries()
         for name, widgets in self.cards.items():
-            value = self.service.read_register(name)
-            quality = self.service.status(name) or Quality.ERROR
-            with self.service._lock:  # type: ignore[attr-defined]
-                entry = self.service._cache.get(name)
-            ts = entry["timestamp"] if entry else None
-            widgets["value"].set("--" if value is None else str(value))
+            entry = entries.get(name)
+            if entry is None:
+                quality = Quality.ERROR
+                value = None
+                ts = None
+            else:
+                quality = entry["quality"]
+                value = entry["value"]
+                ts = entry["timestamp"]
+            spec = BY_NAME.get(name, {})
+            fmt = spec.get("format")
+            if value is None:
+                value_str = "--"
+            elif fmt:
+                try:
+                    value_str = fmt.format(value)
+                except Exception:
+                    value_str = str(value)
+            else:
+                value_str = str(value)
+            widgets["value"].set(value_str)
             if ts is not None:
                 widgets["timestamp"].set(time.strftime("%H:%M:%S", time.localtime(ts)))
             else:
