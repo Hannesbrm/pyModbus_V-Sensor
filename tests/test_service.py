@@ -10,6 +10,7 @@ from typing import Any, Dict
 # Ensure project root on path
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))
 
+import service as service_module
 from service import Quality, VSensorService
 
 
@@ -113,3 +114,45 @@ def test_get_entry_api() -> None:
     entry = service.get_entry("heartbeat")
     assert entry is not None
     assert entry["quality"] is Quality.STALE
+
+
+def test_configure_recreates_client(monkeypatch) -> None:
+    created_clients: list[RecordingClient] = []
+
+    class RecordingClient:
+        def __init__(self, **kwargs: Any) -> None:
+            self.kwargs = dict(kwargs)
+            self.connected = False
+            self.closed = False
+            created_clients.append(self)
+
+        def connect(self) -> bool:
+            self.connected = True
+            return True
+
+        def close(self) -> None:
+            self.closed = True
+
+        def read_register(self, name: str) -> Any:  # pragma: no cover - simple
+            return 0
+
+        def write_register(self, name: str, value: Any) -> bool:  # pragma: no cover
+            return True
+
+    monkeypatch.setattr(service_module, "VSensorClient", RecordingClient)
+
+    service = VSensorService(registers=["heartbeat"], interval=0.05, timeout=1.0)
+    time.sleep(0.1)
+
+    assert len(created_clients) == 1
+    assert created_clients[0].connected
+
+    service.configure(timeout=2.0, host="example.com")
+    time.sleep(0.1)
+
+    assert len(created_clients) == 2
+    assert created_clients[0].closed
+    assert created_clients[1].kwargs == {"timeout": 2.0, "host": "example.com"}
+    assert created_clients[1].connected
+
+    service.stop()

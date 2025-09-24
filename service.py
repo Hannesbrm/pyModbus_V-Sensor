@@ -66,7 +66,8 @@ class VSensorService:
         self._interval = interval
         self._stale_after = stale_after if stale_after is not None else interval * 2
 
-        self._client = client or VSensorClient(**client_kwargs)
+        self._client_kwargs: Dict[str, Any] = dict(client_kwargs)
+        self._client = client or VSensorClient(**self._client_kwargs)
         if client is None:
             try:
                 self._client.connect()
@@ -143,9 +144,13 @@ class VSensorService:
 
     # ------------------------------------------------------------------
     def configure(
-        self, *, registers: Optional[Iterable[str]] = None, interval: float | None = None
+        self,
+        *,
+        registers: Optional[Iterable[str]] = None,
+        interval: float | None = None,
+        **client_kwargs: Any,
     ) -> None:
-        """Update registers and/or interval for subsequent polling."""
+        """Update registers, interval and/or client configuration."""
         if registers is not None:
             for name in registers:
                 if name not in BY_NAME:
@@ -156,6 +161,20 @@ class VSensorService:
         if interval is not None:
             self._interval = interval
             self._stale_after = interval * 2
+        if client_kwargs:
+            self._client_kwargs.update(client_kwargs)
+            old_client = self._client
+            try:
+                old_client.close()
+            except Exception:  # pragma: no cover - defensive
+                pass
+            self._client = VSensorClient(**self._client_kwargs)
+            try:
+                self._client.connect()
+            except Exception as exc:  # pragma: no cover - defensive
+                LOGGER.error("Failed to connect: %s", exc)
+            with self._lock:
+                self._cache.clear()
 
     # ------------------------------------------------------------------
     def last_poll_ok(self) -> bool:
