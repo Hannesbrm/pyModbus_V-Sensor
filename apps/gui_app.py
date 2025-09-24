@@ -21,8 +21,6 @@ DEFAULT_CLIENT_CONFIG: dict[str, object] = {
     "baudrate": 9600,
     "parity": "N",
     "stopbits": 1,
-    "host": "localhost",
-    "tcp_port": 502,
     "device_id": 1,
     "timeout": 3.0,
 }
@@ -275,8 +273,6 @@ class DashboardApp:
         baudrate_var = tk.StringVar(value=str(self.client_config.get("baudrate", "")))
         parity_var = tk.StringVar(value=str(self.client_config.get("parity", "N")))
         stopbits_var = tk.StringVar(value=str(self.client_config.get("stopbits", 1)))
-        host_var = tk.StringVar(value=str(self.client_config.get("host", "")))
-        tcp_port_var = tk.StringVar(value=str(self.client_config.get("tcp_port", "")))
         device_id_var = tk.StringVar(value=str(self.client_config.get("device_id", "")))
         timeout_var = tk.StringVar(value=str(self.client_config.get("timeout", "")))
 
@@ -304,18 +300,8 @@ class DashboardApp:
         stopbits_menu = tk.OptionMenu(rtu_frame, stopbits_var, "1", "2")
         stopbits_menu.grid(row=3, column=1, sticky="ew")
 
-        tcp_frame = tk.LabelFrame(body, text="TCP")
-        tcp_opts = {"row": 2, "column": 0, "columnspan": 2, "sticky": "ew", "pady": (10, 0)}
-        tcp_frame.grid(**tcp_opts)
-        tcp_frame.columnconfigure(1, weight=1)
-
-        tk.Label(tcp_frame, text="Host:").grid(row=0, column=0, sticky="w")
-        tk.Entry(tcp_frame, textvariable=host_var).grid(row=0, column=1, sticky="ew")
-        tk.Label(tcp_frame, text="Port:").grid(row=1, column=0, sticky="w")
-        tk.Entry(tcp_frame, textvariable=tcp_port_var).grid(row=1, column=1, sticky="ew")
-
         general_frame = tk.LabelFrame(body, text="General")
-        general_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        general_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         general_frame.columnconfigure(1, weight=1)
 
         tk.Label(general_frame, text="Device ID:").grid(row=0, column=0, sticky="w")
@@ -326,9 +312,7 @@ class DashboardApp:
         def update_frames(*_args: object) -> None:
             if method_var.get() == "rtu":
                 rtu_frame.grid(**rtu_opts)
-                tcp_frame.grid_remove()
             else:
-                tcp_frame.grid(**tcp_opts)
                 rtu_frame.grid_remove()
 
         method_var.trace_add("write", update_frames)
@@ -336,17 +320,21 @@ class DashboardApp:
 
         def apply() -> None:
             new_config = dict(DEFAULT_CLIENT_CONFIG)
-            new_config.update(self.client_config)
+            for key in DEFAULT_CLIENT_CONFIG:
+                if key in self.client_config:
+                    new_config[key] = self.client_config[key]
 
             method = method_var.get()
             new_config["method"] = method
 
             port = port_var.get().strip()
-            if port:
+            if method == "rtu":
+                if not port:
+                    messagebox.showerror("Invalid", "Port must not be empty for RTU")
+                    return
                 new_config["port"] = port
-            elif method == "rtu":
-                messagebox.showerror("Invalid", "Port must not be empty for RTU")
-                return
+            elif port:
+                new_config["port"] = port
 
             baudrate_str = baudrate_var.get().strip()
             if baudrate_str:
@@ -359,7 +347,7 @@ class DashboardApp:
                     return
                 new_config["baudrate"] = baudrate
             elif method == "rtu":
-                messagebox.showerror("Invalid", "Baudrate must be provided for RTU")
+                messagebox.showerror("Invalid", "Baudrate must be a positive integer")
                 return
 
             parity = parity_var.get()
@@ -374,27 +362,6 @@ class DashboardApp:
                 messagebox.showerror("Invalid", "Stopbits must be 1 or 2")
                 return
             new_config["stopbits"] = stopbits
-
-            host = host_var.get().strip()
-            if host:
-                new_config["host"] = host
-            elif method == "tcp":
-                messagebox.showerror("Invalid", "Host must not be empty for TCP")
-                return
-
-            tcp_port_str = tcp_port_var.get().strip()
-            if tcp_port_str:
-                try:
-                    tcp_port = int(tcp_port_str)
-                    if tcp_port <= 0:
-                        raise ValueError
-                except ValueError:
-                    messagebox.showerror("Invalid", "TCP port must be a positive integer")
-                    return
-                new_config["tcp_port"] = tcp_port
-            elif method == "tcp":
-                messagebox.showerror("Invalid", "TCP port must be provided for TCP")
-                return
 
             device_id_str = device_id_var.get().strip()
             try:
@@ -416,8 +383,13 @@ class DashboardApp:
                 return
             new_config["timeout"] = timeout
 
-            self.service.stop()
-            self.service.configure(**new_config)
+            old_service = self.service
+            old_service.stop()
+            self.service = VSensorService(
+                registers=self.selected,
+                interval=self.poll_interval,
+                **new_config,
+            )
             self.service.start()
             self.client_config = new_config
             self.save_config()
