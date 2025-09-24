@@ -50,6 +50,8 @@ class VSensorClient:
         tcp_port: int = 502,
         device_id: int = 1,
         timeout: float = 3.0,
+        parity: str = "N",
+        stopbits: int = 1,
     ) -> None:
         """Create a new client.
 
@@ -70,16 +72,34 @@ class VSensorClient:
             The Modbus unit id of the sensor.
         timeout:
             Timeout in seconds for Modbus operations.
+        parity:
+            Parity for serial connections (``"N"``, ``"E"`` or ``"O"``).
+        stopbits:
+            Number of stop bits for serial connections (``1`` or ``2``).
         """
+
+        if parity not in {"N", "E", "O"}:
+            raise ValueError(f"invalid parity: {parity}")
+        if stopbits not in {1, 2}:
+            raise ValueError(f"invalid stopbits: {stopbits}")
 
         if method == "rtu":
             try:
                 self._client = ModbusSerialClient(
-                    method="rtu", port=port, baudrate=baudrate, timeout=timeout
+                    method="rtu",
+                    port=port,
+                    baudrate=baudrate,
+                    timeout=timeout,
+                    parity=parity,
+                    stopbits=stopbits,
                 )
             except TypeError:  # pragma: no cover - compatibility
                 self._client = ModbusSerialClient(
-                    port=port, baudrate=baudrate, timeout=timeout
+                    port=port,
+                    baudrate=baudrate,
+                    timeout=timeout,
+                    parity=parity,
+                    stopbits=stopbits,
                 )
         elif method == "tcp":
             self._client = ModbusTcpClient(host=host, port=tcp_port, timeout=timeout)
